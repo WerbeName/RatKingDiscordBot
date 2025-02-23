@@ -11,6 +11,16 @@ sys.path.insert(1, "os.")
 database = sqlite3.connect("leveling.sqlite")  # Datenbank für alle Guilds
 cursor = database.cursor()
 
+# Create global leaderboard table (if not exists)
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS global_leaderboard (
+        user_id INTEGER PRIMARY KEY,
+        exp INTEGER,
+        level INTEGER
+    )
+""")
+database.commit()
+
 class Leveling(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -57,9 +67,41 @@ class Leveling(commands.Cog):
             await self.level_up(message, lvl, last_lvl, table_name)
 
     async def level_up(self, message, lvl, last_lvl, table_name):
+        user_id = message.author.id
+
         if int(lvl) > last_lvl:
             await message.channel.send(f"{message.author.mention} has leveled up to level {int(lvl)}!")
             cursor.execute(f"UPDATE {table_name} SET last_lvl = {int(lvl)} WHERE user_id = {message.author.id}")
+            database.commit()
+
+            self.update_global_leaderboard(user_id, lvl)
+
+    def update_global_leaderboard(self, user_id, lvl):
+        """Checks if the user qualifies for the top 10 global leaderboard and updates it."""
+        cursor.execute("SELECT COUNT(*) FROM global_leaderboard")
+        count = cursor.fetchone()[0]
+
+        # Check if the player is already in the leaderboard
+        cursor.execute("SELECT exp FROM global_leaderboard WHERE user_id = ?", (user_id,))
+        existing_entry = cursor.fetchone()
+
+        if existing_entry:
+            # Update the player's entry if they improved
+            cursor.execute("UPDATE global_leaderboard SET level = ? WHERE user_id = ?", (lvl, user_id))
+            database.commit()
+        else:
+            if count < 10:
+                # If there are fewer than 10 entries, simply add the player
+                cursor.execute("INSERT INTO global_leaderboard (user_id, exp, level) VALUES (?, ?, ?)", (user_id, 0, lvl))
+            else:
+                # Check if the new level is higher than the lowest-ranked player
+                cursor.execute("SELECT user_id, level FROM global_leaderboard ORDER BY level ASC LIMIT 1")
+                lowest = cursor.fetchone()
+
+                if lowest and lvl > lowest[1]:  # If user level > lowest level on leaderboard
+                    cursor.execute("DELETE FROM global_leaderboard WHERE user_id = ?", (lowest[0],))
+                    cursor.execute("INSERT INTO global_leaderboard (user_id, exp, level) VALUES (?, ?, ?)", (user_id, 0, lvl))
+
             database.commit()
 
     @tasks.loop(minutes=1)
@@ -147,7 +189,7 @@ class Leveling(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f'{self.bot.user} ist jetzt online!')
+        print(f'{self.__cog_name__} is ready!')
 
 # Setup-Funktion zum Hinzufügen des Cogs
 async def setup(bot):

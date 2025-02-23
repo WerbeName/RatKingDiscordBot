@@ -8,7 +8,7 @@ class Latency(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f"{self.__cog_name__} is ready")
+        print(f"{self.__cog_name__} is ready!")
 
     @app_commands.command(name="ping", description="requests a 'Pong!' + Latency in ms.")
     async def send_pong(self, interaction: discord.Interaction):
