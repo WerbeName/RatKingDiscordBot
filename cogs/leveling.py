@@ -11,15 +11,6 @@ sys.path.insert(1, "os.")
 database = sqlite3.connect("leveling.sqlite")  # Datenbank für alle Guilds
 cursor = database.cursor()
 
-# Create global leaderboard table (if not exists)
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS global_leaderboard (
-        user_id INTEGER PRIMARY KEY,
-        exp INTEGER,
-        level INTEGER
-    )
-""")
-database.commit()
 
 class Leveling(commands.Cog):
     def __init__(self, bot):
@@ -86,7 +77,6 @@ class Leveling(commands.Cog):
             database.commit()
 
             self.update_global_leaderboard(user_id, lvl)
-
 
     def update_global_leaderboard(self, user_id, lvl):
         """Checks if the user qualifies for the top 10 global leaderboard and updates it."""

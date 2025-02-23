@@ -25,9 +25,7 @@ class LeaderBoardSelect(discord.ui.Select):
             cursor.execute(f"SELECT user_id, exp, level FROM {table_name} ORDER BY level DESC, exp DESC LIMIT 10")
             return cursor.fetchall()
         else:
-            # Fetch top 10 players from the global leaderboard
-            cursor.execute("SELECT user_id, exp, level FROM global_leaderboard ORDER BY level DESC, exp DESC LIMIT 10")
-            return cursor.fetchall()
+            return None
 
     async def callback(self, interaction: discord.Interaction):
         leaderboard_members = self.get_leaderboard(interaction.guild if self.values[0] == "local" else None)
