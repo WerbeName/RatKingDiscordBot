@@ -60,21 +60,33 @@ class Leveling(commands.Cog):
             exp += exp_gained
             lvl = 0.1 * (math.sqrt(exp))
 
-            print(f"User: {message.author.name}\n\tCurrent XP: {exp}\n\tCurrent Level: {lvl}\n\tLast Level: {last_lvl}\n\tGained: {exp_gained}xp\n\n")
+            print(f"\nUser: {message.author.name}\nGained XP: {exp_gained}\nCurrent Level: {lvl:.2f}\tCurrent XP: {exp}")
+
             cursor.execute(f"UPDATE {table_name} SET exp = {exp}, level = {lvl} WHERE user_id = {message.author.id}")
             database.commit()
             
             await self.level_up(message, lvl, last_lvl, table_name)
 
-    async def level_up(self, message, lvl, last_lvl, table_name):
-        user_id = message.author.id
+    async def level_up(self, obj, lvl, last_lvl, table_name):
+        if isinstance(obj, discord.Message):
+            user_id = obj.author.id
+            channel = obj.channel
+            mention = obj.author.mention
+        elif isinstance(obj, discord.Member):
+            user_id = obj.id
+            channel = obj.guild.system_channel  # Oder ein anderer Kanal
+            mention = obj.mention
+        else:
+            return  # Ungültiger Typ, Methode abbrechen
 
-        if int(lvl) > last_lvl:
-            await message.channel.send(f"{message.author.mention} has leveled up to level {int(lvl)}!")
-            cursor.execute(f"UPDATE {table_name} SET last_lvl = {int(lvl)} WHERE user_id = {message.author.id}")
+        if int(lvl) > last_lvl and channel:
+            await channel.send(f"{mention} has leveled up to level {int(lvl)}!")
+
+            cursor.execute(f"UPDATE {table_name} SET last_lvl = {int(lvl)} WHERE user_id = {user_id}")
             database.commit()
 
             self.update_global_leaderboard(user_id, lvl)
+
 
     def update_global_leaderboard(self, user_id, lvl):
         """Checks if the user qualifies for the top 10 global leaderboard and updates it."""
@@ -107,6 +119,8 @@ class Leveling(commands.Cog):
     @tasks.loop(minutes=1)
     async def xp_loop(self):
         """Wird jede Minute ausgeführt und gibt XP an alle Benutzer, die im Voice-Channel sind."""
+        print("XP Loop started")
+        
         for guild in self.bot.guilds:
             table_name = f"guild_{guild.id}"
             
@@ -121,6 +135,9 @@ class Leveling(commands.Cog):
             """)
             database.commit()
 
+            users = []  # Liste für Benutzernamen
+            xp_gains = []  # Liste für XP-Gewinne
+            
             for channel in guild.voice_channels:
                 for member in channel.members:
                     if member.bot:
@@ -142,12 +159,19 @@ class Leveling(commands.Cog):
                         exp += exp_gained
                         lvl = 0.1 * (math.sqrt(exp))
 
-                        print(f"User: {member.name}\n\tCurrent XP: {exp}\n\tCurrent Level: {lvl}\n\tLast Level: {last_lvl}\n\tGained: {exp_gained}xp\n\n")
+                        users.append(member.name)
+                        xp_gains.append(str(exp_gained))
+
                         cursor.execute(f"UPDATE {table_name} SET exp = {exp}, level = {lvl} WHERE user_id = {member.id}")
                         database.commit()
 
                         # Level-up prüfen
                         await self.level_up(member, lvl, last_lvl, table_name)
+
+            if users:
+                print(f"\nUsers: {', '.join(users)}")
+                print(f"Gained XP: {', '.join(xp_gains)}\n")
+
 
     @app_commands.command(name="rank", description="Shows your rank in the server")
     async def rank(self, interaction: discord.Interaction):

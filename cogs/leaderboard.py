@@ -71,7 +71,7 @@ class Leaderboard(commands.Cog):
     @app_commands.command(name="leaderboard", description="Displays the leaderboard.")
     async def leaderboard(self, interaction: discord.Interaction):
         """Command to display the leaderboard selection menu."""
-        await interaction.response.send_message("Select a leaderboard to view:", view=LeaderBoardView(), ephemeral=True)
+        await interaction.response.send_message("Select a leaderboard to view:", view=LeaderBoardView(), delete_after=60)
 
 async def setup(bot):
     await bot.add_cog(Leaderboard(bot))
