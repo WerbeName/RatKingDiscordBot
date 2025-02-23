@@ -6,21 +6,27 @@ import sqlite3
 
 class LeaderBoardSelect(discord.ui.Select):
     def __init__(self):
-        super().__init__()
+        options = [
+            discord.SelectOption(emoji=":first_place:", label="Server Leaderboard", description="Shows the Server Leaderboard.", value=0),
+            discord.SelectOption(emoji=":medal:", label="Guild Leaderboard", description="Shows the Global Leaderboard.", value=1)
+        ]
+        super().__init__(placeholder="Select Leaderboard..", custom_id="leaderboardselect", options=options)
 
-    def get_leaderboard() -> Exception:
+    @staticmethod
+    def get_leaderboard(guild: discord.Guild = None) -> Exception:
         # add sqlite3 code for getting leaderboard
+        if not guild:
+            #code for global leaderboard
+            return 
+        #code for server leaderboard
         raise NotImplementedError.add_note("add needed code as described in comment above Exception raise.")
+
+    async def callback(self, interaction: discord.Interaction):
+        0
 
 class LeaderBoardView(discord.ui.View):
     def __init__(self):
         super().__init__()
-        self.leaderboards: list[discord.SelectOption] = self.get_leaderboard() # add save type to leaderboard (return type of future get_leaderboard method)
+        self.add_item(LeaderBoardSelect())
 
-    
-
-    @discord.ui.select(placeholder="Select Leaderboard..", custom_id="leaderboard")
-    async def leaderboard(self, interaction: discord.Interaction):
-        for leaderboard in self.leaderboards:
-            0
 
