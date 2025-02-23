@@ -24,4 +24,8 @@ async def main():
         await load()
         await bot.start(token)
         
-asyncio.run(main())
+
+try:
+    asyncio.run(main())
+except:
+    0
