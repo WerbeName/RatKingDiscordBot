@@ -1,61 +1,98 @@
+import datetime
 import discord
 from discord.ext import commands
 from discord import app_commands
 import sqlite3
-import sys
 
-sys.path.insert(1, "os.")
 database = sqlite3.connect("leveling.sqlite")
 cursor = database.cursor()
 
-class LeaderBoardSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(emoji="\U0001F947", label="Server Leaderboard", description="Shows the Server Leaderboard.", value="local"),
-            discord.SelectOption(emoji="\U0001F396", label="Global Leaderboard", description="Shows the Global Leaderboard.", value="global")
-        ]
-        super().__init__(placeholder="Select Leaderboard..", custom_id="leaderboardselect", options=options)
-
-    @staticmethod
-    def get_leaderboard(guild: discord.Guild = None) -> list[tuple]:
-        """Fetches the leaderboard from the database."""
-        if guild:
-            # Fetch top 10 players from the guild's leaderboard
-            table_name = f"guild_{guild.id}"
-            cursor.execute(f"SELECT user_id, exp, level FROM {table_name} ORDER BY level DESC, exp DESC LIMIT 10")
-            return cursor.fetchall()
-        else:
-            return None
-
-    async def callback(self, interaction: discord.Interaction):
-        leaderboard_members = self.get_leaderboard(interaction.guild if self.values[0] == "local" else None)
-        
-        if not leaderboard_members:
-            return await interaction.response.send_message("No leaderboard data available.", ephemeral=True)
-        
-        embed = discord.Embed(
-            title="🏆 Leaderboard",
-            description=f"Showing the **{'Server' if self.values[0] == 'local' else 'Global'}** Leaderboard",
-            color=discord.Color.gold()
-        )
-
-        for rank, (user_id, exp, level) in enumerate(leaderboard_members, start=1):
-            user = interaction.client.get_user(user_id) or f"Unknown User ({user_id})"
-            embed.add_field(
-                name=f"#{rank} {user}",
-                value=f"Level: **{int(level)}** | XP: **{exp}**",
-                inline=False
-            )
-
-        embed.set_footer(text=f"Requested by {interaction.user.name}", icon_url=interaction.user.avatar.url)
-        
-        await interaction.response.edit_message(embed=embed)
 
 class LeaderBoardView(discord.ui.View):
     def __init__(self):
         super().__init__()
-        self.add_item(LeaderBoardSelect())
 
+    @staticmethod
+    def get_leaderboard(guild: discord.Guild) -> list[tuple]:
+        if guild:
+            table_name = f"guild_{guild.id}"
+            cursor.execute(
+                f"SELECT user_id, exp, level FROM {table_name} ORDER BY level DESC, exp DESC LIMIT 10"
+            )
+            return cursor.fetchall()
+        return []
+
+    @staticmethod
+    async def get_leaderboard_embed(
+        guild: discord.Guild, interaction: discord.Interaction
+    ) -> list[discord.Embed]:
+        if not guild:
+            return None
+
+        leaderboard_members = LeaderBoardView.get_leaderboard(guild)
+        if not leaderboard_members:
+            return None
+
+        embeds = []
+        large_embed = discord.Embed(
+            color=0x454545,
+            timestamp=datetime.datetime.now(),
+            description="Ranks 4 - 10:",
+        ).set_footer(
+            text="Last Refresh at: ",
+            icon_url=interaction.client.user.avatar.url,
+        )
+
+        for rank, (user_id, exp, level) in enumerate(leaderboard_members, start=1):
+            try:
+                user = await interaction.client.fetch_user(user_id)
+            except discord.NotFound:
+                user = f"Unknown User ({user_id})"
+
+            if isinstance(user, discord.User):
+                username = user.name
+                avatar_url = user.avatar.url if user.avatar else None
+            else:
+                username = str(user)
+                avatar_url = None
+
+            if rank <= 3:
+                embed = discord.Embed(
+                    color=(
+                        discord.Color.from_rgb(255, 215, 0)
+                        if rank == 1
+                        else discord.Color.from_rgb(192, 192, 192)
+                        if rank == 2
+                        else discord.Color.from_rgb(205, 127, 50)
+                    ),
+                    timestamp=datetime.datetime.now(),
+                    title=username,
+                    description=f"Experience Points: {exp}",
+                ).set_author(
+                    name=f"{rank}. Place | lvl: {int(level)} ({(level-int(level))*100:.0f}%)",
+                    icon_url=avatar_url
+                ).set_footer(
+                    text="Last Refresh at: ",
+                    icon_url=interaction.client.user.avatar.url,
+                )
+                embeds.append(embed)
+            else:
+                large_embed.add_field(
+                    name=f"{rank}. {username} | lvl: {int(level)} ({(level-int(level))*100:.0f}%)",
+                    value=f"Experience Points: {exp}",
+                    inline=False,
+                )
+
+        embeds.append(large_embed)
+        return embeds
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.primary, custom_id="refresh")
+    async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embeds = await LeaderBoardView.get_leaderboard_embed(interaction.guild, interaction)
+        if embeds:
+            await interaction.response.edit_message(embeds=embeds, view=LeaderBoardView())
+        else:
+            await interaction.response.send_message("No leaderboard data available.", ephemeral=True)
 
 
 class Leaderboard(commands.Cog):
@@ -68,8 +105,12 @@ class Leaderboard(commands.Cog):
 
     @app_commands.command(name="leaderboard", description="Displays the leaderboard.")
     async def leaderboard(self, interaction: discord.Interaction):
-        """Command to display the leaderboard selection menu."""
-        await interaction.response.send_message("Select a leaderboard to view:", view=LeaderBoardView(), delete_after=60)
+        embeds = await LeaderBoardView.get_leaderboard_embed(interaction.guild, interaction)
+        if embeds:
+            await interaction.response.send_message(embeds=embeds, view=LeaderBoardView(), delete_after=90)
+        else:
+            await interaction.response.send_message("No leaderboard data available.", ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(Leaderboard(bot))
