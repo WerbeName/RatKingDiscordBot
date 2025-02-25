@@ -45,7 +45,9 @@ class LeaderBoardView(discord.ui.View):
 
         for rank, (user_id, exp, level) in enumerate(leaderboard_members, start=1):
             try:
-                user = await interaction.client.fetch_user(user_id)
+                user = interaction.client.get_user(user_id)  # Try to get user from cache first
+                if user is None:  # If not found in cache, fetch from API
+                    user = await interaction.client.fetch_user(user_id)
             except discord.NotFound:
                 user = f"Unknown User ({user_id})"
 
