@@ -59,23 +59,25 @@ class Leveling(commands.Cog):
             await self.level_up(message, lvl, last_lvl, table_name)
 
     async def level_up(self, obj, lvl, last_lvl, table_name):
+        guild_id = obj.guild.id
+        cursor.execute("SELECT channel_id FROM leveling_channels WHERE guild_id = ?", (guild_id,))
+        level_channel = cursor.fetchone()
+        
         if isinstance(obj, discord.Message):
             user_id = obj.author.id
-            channel = obj.channel
+            channel = obj.channel if not level_channel else obj.guild.get_channel(level_channel[0])
             mention = obj.author.mention
         elif isinstance(obj, discord.Member):
             user_id = obj.id
-            channel = obj.guild.system_channel  # Oder ein anderer Kanal
+            channel = obj.guild.system_channel if not level_channel else obj.guild.get_channel(level_channel[0])
             mention = obj.mention
         else:
-            return  # Ungültiger Typ, Methode abbrechen
-
+            return
+        
         if int(lvl) > last_lvl and channel:
             await channel.send(f"{mention} has leveled up to level {int(lvl)}!")
-
             cursor.execute(f"UPDATE {table_name} SET last_lvl = {int(lvl)} WHERE user_id = {user_id}")
             database.commit()
-
             self.update_global_leaderboard(user_id, lvl)
 
     def update_global_leaderboard(self, user_id, lvl):
@@ -200,6 +202,48 @@ class Leveling(commands.Cog):
 
         card = await vacefron.Client().rank_card(rank_card)
         await interaction.response.send_message(card.url)
+    
+    @app_commands.command(name="setupleveling", description="Set up a channel for level-up messages")
+    async def setupleveling(self, interaction: discord.Interaction, channel_name: str, category: discord.CategoryChannel = None):
+        guild_id = interaction.guild.id
+        cursor.execute("CREATE TABLE IF NOT EXISTS leveling_channels (guild_id INTEGER, channel_id INTEGER)")
+        database.commit()
+        
+        cursor.execute("SELECT channel_id FROM leveling_channels WHERE guild_id = ?", (guild_id,))
+        existing_channel = cursor.fetchone()
+        
+        if existing_channel:
+            await interaction.response.send_message("This server already has a leveling channel set up! Use /resetleveling to change it.", ephemeral=True)
+            return
+        
+        # Channel erstellen
+        overwrites = {interaction.guild.default_role: discord.PermissionOverwrite(send_messages=False)}
+        new_channel = await interaction.guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
+        
+        cursor.execute("INSERT INTO leveling_channels (guild_id, channel_id) VALUES (?, ?)", (guild_id, new_channel.id))
+        database.commit()
+        
+        await interaction.response.send_message(f"Leveling channel has been set to {new_channel.mention}")
+
+    @app_commands.command(name="resetleveling", description="Reset the leveling channel")
+    async def resetleveling(self, interaction: discord.Interaction):
+        guild_id = interaction.guild.id
+        
+        cursor.execute("SELECT channel_id FROM leveling_channels WHERE guild_id = ?", (guild_id,))
+        existing_channel = cursor.fetchone()
+        
+        if not existing_channel:
+            await interaction.response.send_message("No leveling channel is set up for this server.", ephemeral=True)
+            return
+        
+        channel = interaction.guild.get_channel(existing_channel[0])
+        if channel:
+            await channel.delete()
+        
+        cursor.execute("DELETE FROM leveling_channels WHERE guild_id = ?", (guild_id,))
+        database.commit()
+        
+        await interaction.response.send_message("Leveling channel has been reset and deleted.")
 
     @commands.Cog.listener()
     async def on_ready(self):
