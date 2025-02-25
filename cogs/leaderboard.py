@@ -88,7 +88,7 @@ class LeaderBoardView(discord.ui.View):
         embeds.append(large_embed)
         return embeds
 
-    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.primary, custom_id="refresh")
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.gray, custom_id="refresh")
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         embeds = await LeaderBoardView.get_leaderboard_embed(interaction.guild, interaction)
         if embeds:
