@@ -165,8 +165,33 @@ class Leveling(commands.Cog):
                 print(f"Gained XP: {', '.join(xp_gains)}\n")
 
 
-    @app_commands.command(name="rank", description="Shows your rank in the server")
-    async def rank(self, interaction: discord.Interaction):
+    @app_commands.command(name="rank", description="Shows your rank or another user's rank in the server")
+    async def rank(self, interaction: discord.Interaction, member: discord.Member = None):
+        member = member or interaction.user  # Wenn kein Mitglied angegeben wird, benutze den aufrufenden Benutzer.
+
+        if member.bot:
+            meme_numbers = [69, 420, 666, 69420, 80085, 777, 1337, 9001]
+            
+            # Rerollen, bis next_level_xp > current_xp ist
+            while True:
+                current_xp, next_level_xp, level, rank = random.sample(meme_numbers, 4)
+                if next_level_xp > current_xp:
+                    break
+
+            rank_card = vacefron.Rankcard(
+                username=member.name,
+                avatar_url=member.avatar.url if member.avatar else member.default_avatar.url,
+                current_xp=current_xp,
+                next_level_xp=next_level_xp,
+                previous_level_xp=0,
+                level=level,
+                rank=rank,
+            )
+
+            card = await vacefron.Client().rank_card(rank_card)
+            await interaction.response.send_message(card.url)
+            return
+
         guild_id = interaction.guild.id
         table_name = f"guild_{guild_id}"
 
@@ -176,23 +201,24 @@ class Leveling(commands.Cog):
 
         rank = 1
         for i in range(len(result)):
-            if result[i][0] == interaction.user.id:
+            if result[i][0] == member.id:  # Überprüft den Rang des angegebenen Mitglieds
                 break
             else:
                 rank += 1
 
-        cursor.execute(f"SELECT exp, level, last_lvl FROM {table_name} WHERE user_id = {interaction.user.id}")
+        cursor.execute(f"SELECT exp, level, last_lvl FROM {table_name} WHERE user_id = {member.id}")
         result = cursor.fetchone()
         if not result:
-            await interaction.response.send_message("You have no rank yet!", ephemeral=True)
+            await interaction.response.send_message(f"{member.display_name} has no rank yet!", ephemeral=True)
             return
+
         level, exp, last_lvl = result[1], result[0], result[2]
         next_lvl_up = ((int(level) + 1) / 0.1) ** 2
         next_lvl_up = int(next_lvl_up)
         
         rank_card = vacefron.Rankcard(
-            username=interaction.user.name,
-            avatar_url=interaction.user.avatar.url,
+            username=member.name,
+            avatar_url=member.avatar.url,
             current_xp=exp,
             next_level_xp=next_lvl_up,
             previous_level_xp=0,

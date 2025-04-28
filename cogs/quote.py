@@ -50,7 +50,9 @@ class Quotes(commands.Cog):
         guild_id = message.guild.id
         cursor.execute("SELECT channel_id FROM quote_channels WHERE guild_id = ?", (guild_id,))
         result = cursor.fetchone()
-
+        quote_channel_id = result[0]
+        if message.channel.id != quote_channel_id:
+            return  # Nachricht ist nicht im Quote-Channel
         if not result:
             return  # Kein Quote-Channel, keine Reaktion
 
