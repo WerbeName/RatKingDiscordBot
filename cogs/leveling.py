@@ -165,33 +165,8 @@ class Leveling(commands.Cog):
                 print(f"Gained XP: {', '.join(xp_gains)}\n")
 
 
-    @app_commands.command(name="rank", description="Shows your rank or another user's rank in the server")
-    async def rank(self, interaction: discord.Interaction, member: discord.Member = None):
-        member = member or interaction.user
-
-        if member.bot:  
-            meme_numbers = [69, 420, 666, 69420, 80085, 777, 1337, 9001]
-            
-            # Rerollen, bis next_level_xp > current_xp ist
-            while True:
-                current_xp, next_level_xp, level, rank = random.sample(meme_numbers, 4)
-                if next_level_xp > current_xp:
-                    break
-
-            rank_card = vacefron.Rankcard(
-                username=member.name,
-                avatar_url=member.avatar.url if member.avatar else member.default_avatar.url,
-                current_xp=current_xp,
-                next_level_xp=next_level_xp,
-                previous_level_xp=0,
-                level=level,
-                rank=rank,
-            )
-
-            card = await vacefron.Client().rank_card(rank_card)
-            await interaction.response.send_message(card.url)
-            return
-
+    @app_commands.command(name="rank", description="Shows your rank in the server")
+    async def rank(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
         table_name = f"guild_{guild_id}"
 
@@ -201,28 +176,23 @@ class Leveling(commands.Cog):
 
         rank = 1
         for i in range(len(result)):
-            if result[i][0] == member.id:
+            if result[i][0] == interaction.user.id:
                 break
             else:
                 rank += 1
 
-        cursor.execute(f"SELECT exp, level, last_lvl FROM {table_name} WHERE user_id = {member.id}")
+        cursor.execute(f"SELECT exp, level, last_lvl FROM {table_name} WHERE user_id = {interaction.user.id}")
         result = cursor.fetchone()
         if not result:
-            await interaction.response.send_message(f"{member.display_name} has no rank yet!", ephemeral=True)
+            await interaction.response.send_message("You have no rank yet!", ephemeral=True)
             return
-
         level, exp, last_lvl = result[1], result[0], result[2]
-
-        # Rerollen, bis next_lvl_up > exp ist
-        while True:
-            next_lvl_up = random.choice(meme_numbers)
-            if next_lvl_up > exp:
-                break
-
+        next_lvl_up = ((int(level) + 1) / 0.1) ** 2
+        next_lvl_up = int(next_lvl_up)
+        
         rank_card = vacefron.Rankcard(
-            username=member.name,
-            avatar_url=member.avatar.url if member.avatar else member.default_avatar.url,
+            username=interaction.user.name,
+            avatar_url=interaction.user.avatar.url,
             current_xp=exp,
             next_level_xp=next_lvl_up,
             previous_level_xp=0,
@@ -232,9 +202,6 @@ class Leveling(commands.Cog):
 
         card = await vacefron.Client().rank_card(rank_card)
         await interaction.response.send_message(card.url)
-
-
-
     
     @app_commands.command(name="setupleveling", description="Set up a channel for level-up messages")
     async def setupleveling(self, interaction: discord.Interaction, channel_name: str, category: discord.CategoryChannel = None):
